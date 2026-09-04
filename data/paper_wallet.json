@@ -1,0 +1,30 @@
+{
+    "BRL": {
+        "cash": 0.0,
+        "initial_cash": 10000.0,
+        "positions": {
+            "PETR4.SA": {
+                "amount": 210.19763901045985,
+                "buy_price": 47.560001373291016,
+                "buy_date": "2026-09-04 17:22:28",
+                "cost_basis": 9997.0,
+                "fee_paid": 2.9999999999999996
+            }
+        },
+        "history": []
+    },
+    "USDT": {
+        "cash": 0.0,
+        "initial_cash": 1000.0,
+        "positions": {
+            "BTC-USD": {
+                "amount": 0.012292095297960172,
+                "buy_price": 81271.7421875,
+                "buy_date": "2026-09-04 17:23:16",
+                "cost_basis": 999.0,
+                "fee_paid": 1.0
+            }
+        },
+        "history": []
+    }
+}

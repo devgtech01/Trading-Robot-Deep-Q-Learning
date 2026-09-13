@@ -5,12 +5,106 @@ Sistema quantitativo autônomo de **Swing Trade** e **Criptomoedas (24/7)** base
 ---
 
 ## 📋 Índice
+0. [Painel Web Interativo (interface gráfica)](#-0-painel-web-interativo)
 1. [Instalação e Pré-requisitos](#-1-instalação-e-pré-requisitos)
 2. [Configuração do MetaTrader 5 (XP Investimentos / B3)](#-2-configuração-do-metatrader-5-xp-investimentos--b3)
 3. [Configuração da Binance (Criptomoedas 24/7)](#-3-configuração-da-binance-criptomoedas-247)
 4. [Como Treinar os Modelos de IA](#-4-como-treinar-os-modelos-de-ia)
 5. [Como Executar no Dia a Dia](#-5-como-executar-no-dia-a-dia)
 6. [Resumo dos Comandos](#-6-resumo-dos-comandos)
+
+---
+
+## 🖥️ 0. Painel Web Interativo
+
+Além dos scripts de linha de comando, o projeto tem uma **interface web completa** que centraliza tudo:
+carteira, sinais, treinamento, backtests e automação — com **Ações da B3 e Criptomoedas separadas em abas próprias**.
+
+```bash
+pip install -r requirements.txt
+python dashboard.py
+```
+
+O navegador abre automaticamente em **http://127.0.0.1:8000**.
+Opções: `--port 8080`, `--host 0.0.0.0` (acesso pela rede local), `--no-browser`, `--debug`.
+
+### O que dá para fazer na interface
+
+| Aba | Função |
+| :--- | :--- |
+| **Ações B3** | Um card por ação/ETF com cotação, variação, sinal da IA (Comprar / Vender / Aguardar), os três Q-values da rede neural, RSI, distância da SMA21, retorno de 5 dias, volatilidade e mini-gráfico de 90 dias |
+| **Criptomoedas** | Os mesmos cards, com o indicador extra de Bandas de Bollinger (%B) e valores em USDT |
+| **Carteira** | Contas separadas em R$ (ações) e USDT (cripto): patrimônio, caixa, posições abertas, resultado realizado, taxa de acerto, aportes e reinício |
+| **Automação** | Liga/desliga o robô de cada ativo, escolhe o destino da ordem e o intervalo de verificação, e mostra última/próxima execução |
+| **Histórico** | Operações fechadas com lucro/prejuízo e o registro completo de tudo que o robô fez |
+| **Configurações** | Chaves da Binance, teste de conexão com MetaTrader 5 e Binance, trava de dinheiro real e cache de cotações |
+
+### Treinar e avaliar pelo painel
+
+Cada card tem o botão **Treinar**: escolha episódios, batch size e capital simulado, e acompanhe o
+log ao vivo com o resultado de cada episódio. Ao terminar, o painel mostra o **teste cego (out-of-sample)** —
+retorno do robô contra Buy & Hold, drawdown, Sharpe, número de trades e taxa de acerto — e o botão
+**Backtest** abre o relatório gráfico gerado em `reports/`.
+
+### Tamanho da ordem e recomendação de risco
+
+No botão **Executar**, quando o sinal é de compra, você digita quanto quer comprar — número de
+ações na B3, valor em USDT na cripto — e esse valor vale só para aquela ordem, sem mexer no
+padrão configurado no ativo.
+
+Ao lado, o painel sugere um tamanho e **mostra a conta inteira**, passo a passo:
+
+1. **Orçamento de risco** — 2% do patrimônio da conta por operação.
+2. **Divisão pela perda do próprio modelo** — a perda média por trade que ele teve no
+   teste cego. Se ele não teve trades perdedores, entra a maior queda de patrimônio, que é
+   mais conservadora.
+3. **Corte por qualidade da evidência** — o tamanho é reduzido quando o backtest é fraco:
+   poucas operações, perdas maiores que ganhos, resultado negativo no teste cego, desempenho
+   abaixo do Buy & Hold, drawdown acima de 40%, ou treino com menos de 10 episódios.
+4. **Tetos** — no máximo 25% do patrimônio da conta em um ativo, e nunca acima do caixa livre.
+
+Abaixo da sugestão vem o embasamento: retorno do robô contra Buy & Hold, drawdown, Sharpe,
+número de operações, taxa de acerto, ganho e perda médios — tudo do teste cego daquele modelo,
+guardado em `data/backtests.json`. Modelos treinados antes desse recurso são reavaliados
+automaticamente na primeira consulta, sem precisar retreinar.
+
+> É uma conta de risco sobre o seu próprio backtest, não recomendação de investimento —
+> e resultado de backtest não garante resultado futuro. O número sugerido é ponto de partida;
+> quem decide o tamanho é você.
+
+### Encerrar uma posição por conta própria
+
+Todas as ordens do sistema são **a mercado**: executam na hora, então não existe ordem pendente
+para cancelar. O que existe é reverter — vender de volta.
+
+Na linha da posição, dentro do card do ativo, há o botão **Encerrar**. Ele vende a posição
+inteira imediatamente, mesmo que o modelo esteja dizendo AGUARDAR, e mostra antes o resultado
+que será realizado. O destino é escolhido na hora: carteira simulada, MetaTrader 5 ou Binance.
+
+Só a venda pode ser forçada. Compra forçada o painel recusa — passar por cima do modelo na
+direção que aumenta exposição é justamente o que a automação existe para evitar.
+
+### Modos de execução da automação
+
+| Modo | O que faz |
+| :--- | :--- |
+| **Somente sinal** | Calcula e registra a recomendação, sem enviar nenhuma ordem |
+| **Carteira simulada (paper)** | Compra e vende na carteira virtual de `data/paper_wallet.json` |
+| **Binance Testnet** | Envia ordens reais à Testnet da Binance (dinheiro fictício) |
+| **MetaTrader 5** | Envia ordens à sua conta da corretora — **dinheiro real** |
+| **Binance conta real** | Envia ordens à conta real da Binance — **dinheiro real** |
+
+Cada ativo tem seu próprio intervalo (em minutos). O agendador só roda com a **chave-geral** ligada no topo
+da tela, e o botão **Parar tudo** desliga a automação de todos os ativos de uma vez.
+
+### Trava de segurança
+
+Os dois modos com dinheiro real ficam **bloqueados por padrão**. Enquanto a trava estiver ativa em
+*Configurações*, o painel recusa qualquer ordem no MetaTrader 5 e na conta real da Binance — Testnet e
+carteira simulada continuam funcionando. Libere apenas depois de validar a estratégia por semanas em simulador.
+
+> As chaves da Binance ficam somente na sua máquina, em `data/settings.json` (já ignorado pelo Git).
+> Os scripts de linha de comando descritos abaixo continuam funcionando normalmente, lendo e escrevendo os mesmos arquivos.
 
 ---
 
@@ -92,28 +186,28 @@ Antes de colocar os robôs para operar, você treina a rede neural DQN no histó
 ### A. Treinar em Ações da B3 (Treina 2018–2022 e Testa 2023–2026):
 ```bash
 # Petrobras (PETR4)
-python main.py --ticker PETR4.SA --episodes 20
+python main.py --ticker PETR4.SA --episodes 30
 
 # Vale (VALE3)
-python main.py --ticker VALE3.SA --episodes 25
+python main.py --ticker VALE3.SA --episodes 30
 
 # WEG (WEGE3)
-python main.py --ticker WEGE3.SA --episodes 20
+python main.py --ticker WEGE3.SA --episodes 30
 
 # ETF do Ibovespa (BOVA11)
-python main.py --ticker BOVA11.SA --episodes 20
+python main.py --ticker BOVA11.SA --episodes 30
 ```
 
 ### B. Treinar em Criptomoedas (Treina 2019–2023 e Testa 2024–2026):
 ```bash
 # Bitcoin (BTC)
-python main_crypto.py --ticker BTC-USD --episodes 25
+python main_crypto.py --ticker BTC-USD --episodes 30
 
 # Ethereum (ETH)
-python main_crypto.py --ticker ETH-USD --episodes 25
+python main_crypto.py --ticker ETH-USD --episodes 30
 
 # Solana (SOL)
-python main_crypto.py --ticker SOL-USD --episodes 20
+python main_crypto.py --ticker SOL-USD --episodes 30
 ```
 
 > 📁 Os pesos treinados são salvos automaticamente na pasta `models/` e os relatórios gráficos de backtest com curvas de lucro na pasta `reports/`.
@@ -181,6 +275,7 @@ python binance_bot.py --api-key SUA_API_KEY --secret-key SUA_SECRET_KEY --ticker
 
 | Objetivo | Comando |
 | :--- | :--- |
+| **Abrir o painel web** | `python dashboard.py` |
 | **Treinar Ação B3** | `python main.py --ticker PETR4.SA --episodes 20` |
 | **Treinar Cripto** | `python main_crypto.py --ticker BTC-USD --episodes 25` |
 | **Consultar Sinal B3 Hoje** | `python predict_today.py --ticker PETR4.SA` |

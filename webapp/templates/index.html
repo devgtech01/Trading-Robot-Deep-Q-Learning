@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Robô de Trading DQN</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d9a441' stroke-width='2' stroke-linecap='round'><path d='M4 20V9'/><path d='M11 20V4'/><path d='M18 20v-7'/></svg>">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ============================== TOPO ================================= -->
+<header class="topbar">
+    <div class="brand">
+        <span class="mark">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 20V10"/><path d="M11 20V4"/><path d="M18 20v-6"/>
+            </svg>
+        </span>
+        <div>
+            <h1>Robô de Trading DQN</h1>
+            <span class="tagline">Deep Q-Learning · B3 &amp; Cripto</span>
+        </div>
+    </div>
+
+    <div class="equity-chip">
+        <span class="label">Ações · BRL</span>
+        <span class="value" id="top-equity-brl">—</span>
+    </div>
+    <div class="equity-chip">
+        <span class="label">Cripto · USDT</span>
+        <span class="value" id="top-equity-usdt">—</span>
+    </div>
+
+    <label class="switch" title="Liga e desliga o agendador de todos os robôs">
+        <input type="checkbox" id="master-switch">
+        <span class="track"></span>
+        <span class="txt" id="master-label">Automação desligada</span>
+    </label>
+
+    <button class="danger" id="btn-panic" title="Desliga a automação de todos os ativos imediatamente">
+        <i data-icon="power" data-size="14"></i> Parar tudo
+    </button>
+    <button class="icon" id="btn-refresh" title="Recarregar cotações e sinais">
+        <i data-icon="refresh" data-size="16"></i>
+    </button>
+</header>
+
+<!-- ============================== ABAS ================================= -->
+<nav class="tabs">
+    <button class="tab active" data-view="stocks">
+        <i data-icon="equities" data-size="14"></i> Ações B3 <span class="count" id="count-stocks">0</span>
+    </button>
+    <button class="tab" data-view="crypto">
+        <i data-icon="crypto" data-size="14"></i> Criptomoedas <span class="count" id="count-crypto">0</span>
+    </button>
+    <button class="tab" data-view="wallet">
+        <i data-icon="wallet" data-size="14"></i> Carteira
+    </button>
+    <button class="tab" data-view="automation">
+        <i data-icon="automation" data-size="14"></i> Automação <span class="count" id="count-auto">0</span>
+    </button>
+    <button class="tab" data-view="history">
+        <i data-icon="history" data-size="14"></i> Histórico
+    </button>
+    <button class="tab" data-view="settings">
+        <i data-icon="shield" data-size="14"></i> Configurações
+    </button>
+</nav>
+
+<main>
+    <!-- ============================ AÇÕES ============================== -->
+    <section class="view active" id="view-stocks">
+        <div class="section-head">
+            <h2>Ações e ETFs da B3</h2>
+            <span class="sub">Swing trade diário · execução via MetaTrader 5 · capital em reais</span>
+            <span class="spacer"></span>
+            <button class="primary" data-add-asset="stock"><i data-icon="plus" data-size="14"></i> Adicionar ação</button>
+        </div>
+        <div class="grid" id="grid-stocks"></div>
+    </section>
+
+    <!-- =========================== CRIPTO ============================== -->
+    <section class="view" id="view-crypto">
+        <div class="section-head">
+            <h2>Criptomoedas</h2>
+            <span class="sub">Mercado 24/7 · execução via Binance Spot · capital em USDT</span>
+            <span class="spacer"></span>
+            <button class="primary" data-add-asset="crypto"><i data-icon="plus" data-size="14"></i> Adicionar cripto</button>
+        </div>
+        <div class="grid" id="grid-crypto"></div>
+    </section>
+
+    <!-- ========================== CARTEIRA ============================= -->
+    <section class="view" id="view-wallet">
+        <div class="section-head">
+            <h2>Carteira simulada</h2>
+            <span class="sub">Contas separadas: reais para ações, USDT para cripto · data/paper_wallet.json</span>
+        </div>
+        <div class="panel-grid" id="wallet-accounts"></div>
+    </section>
+
+    <!-- ========================= AUTOMAÇÃO ============================= -->
+    <section class="view" id="view-automation">
+        <div class="section-head">
+            <h2>Central de automação</h2>
+            <span class="sub">Cada ativo roda no seu próprio intervalo enquanto a chave-geral estiver ligada</span>
+        </div>
+
+        <div class="panel" style="margin-bottom:14px">
+            <div id="automation-status" class="stat-row" style="margin-top:0"></div>
+            <div id="automation-warning"></div>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                <tr>
+                    <th>Ativo</th>
+                    <th>Classe</th>
+                    <th>Robô</th>
+                    <th>Destino da execução</th>
+                    <th class="num">Intervalo</th>
+                    <th class="num">Ordem</th>
+                    <th>Última</th>
+                    <th>Próxima</th>
+                    <th>Resultado</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody id="automation-rows"></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- ========================= HISTÓRICO ============================= -->
+    <section class="view" id="view-history">
+        <div class="section-head">
+            <h2>Histórico e eventos</h2>
+            <span class="sub">Operações fechadas na carteira simulada e registro de tudo que o robô fez</span>
+        </div>
+
+        <div class="panel-grid">
+            <div class="panel" style="grid-column: 1 / -1">
+                <h3><i data-icon="history" data-size="16"></i> Operações fechadas</h3>
+                <p class="desc">Trades encerrados, com resultado realizado e taxas já descontadas.</p>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Ativo</th>
+                            <th>Conta</th>
+                            <th>Compra</th>
+                            <th class="num">Preço</th>
+                            <th>Venda</th>
+                            <th class="num">Preço</th>
+                            <th class="num">Quantidade</th>
+                            <th class="num">Resultado</th>
+                            <th class="num">%</th>
+                        </tr>
+                        </thead>
+                        <tbody id="history-rows"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="panel" style="grid-column: 1 / -1">
+                <h3><i data-icon="pulse" data-size="16"></i> Registro de atividades</h3>
+                <p class="desc">Sinais, ordens, treinamentos e alertas do agendador.</p>
+                <div class="activity" id="activity-list"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ======================= CONFIGURAÇÕES ========================== -->
+    <section class="view" id="view-settings">
+        <div class="section-head">
+            <h2>Configurações e conexões</h2>
+            <span class="sub">Credenciais ficam apenas neste computador, em data/settings.json</span>
+        </div>
+
+        <div class="panel-grid">
+            <div class="panel">
+                <h3><i data-icon="key" data-size="16"></i> Binance</h3>
+                <p class="desc">
+                    Use as chaves da <a href="https://testnet.binance.vision/" target="_blank" rel="noopener">Testnet</a>
+                    para simular sem risco. Na conta real, habilite apenas leitura e Spot Trading — nunca saques.
+                </p>
+                <div class="form-row">
+                    <label class="field">API Key
+                        <input type="password" id="cfg-binance-key" placeholder="em branco mantém a atual">
+                    </label>
+                    <label class="field">Secret Key
+                        <input type="password" id="cfg-binance-secret" placeholder="em branco mantém a atual">
+                    </label>
+                </div>
+                <p class="small" id="cfg-binance-status" style="margin:12px 0 0"></p>
+                <div class="card-foot" style="margin-top:14px">
+                    <button class="primary" id="btn-save-binance">Salvar chaves</button>
+                    <button id="btn-test-binance"><i data-icon="link" data-size="14"></i> Testar Testnet</button>
+                    <button id="btn-test-binance-real"><i data-icon="link" data-size="14"></i> Testar conta real</button>
+                    <button class="danger" id="btn-clear-binance">Apagar</button>
+                </div>
+                <div id="binance-result" style="margin-top:14px"></div>
+            </div>
+
+            <div class="panel">
+                <h3><i data-icon="terminal" data-size="16"></i> MetaTrader 5</h3>
+                <p class="desc">
+                    O terminal precisa estar aberto, logado na conta da corretora e com o botão
+                    <strong>AlgoTrading</strong> ativo.
+                </p>
+                <div class="card-foot">
+                    <button class="primary" id="btn-test-mt5"><i data-icon="link" data-size="14"></i> Testar conexão</button>
+                </div>
+                <div id="mt5-result" style="margin-top:14px"></div>
+            </div>
+
+            <div class="panel">
+                <h3><i data-icon="lock" data-size="16"></i> Trava de dinheiro real</h3>
+                <p class="desc">
+                    Enquanto estiver bloqueada, o painel recusa qualquer ordem no MetaTrader 5 e na conta real
+                    da Binance. Testnet e carteira simulada seguem funcionando normalmente.
+                </p>
+                <div class="note risk" style="margin-bottom:15px">
+                    <i data-icon="alert" data-size="16"></i>
+                    <span>Só libere depois de validar a estratégia por semanas em simulador. O robô opera sozinho e pode perder dinheiro.</span>
+                </div>
+                <label class="switch risk">
+                    <input type="checkbox" id="cfg-real-money">
+                    <span class="track"></span>
+                    <span class="txt" id="cfg-real-money-label">Bloqueada</span>
+                </label>
+            </div>
+
+            <div class="panel">
+                <h3><i data-icon="clock" data-size="16"></i> Cotações</h3>
+                <p class="desc">Tempo de cache dos dados do Yahoo Finance antes de uma nova busca.</p>
+                <label class="field" style="max-width:200px">Minutos de cache
+                    <input type="number" id="cfg-cache" min="1" max="240" value="15">
+                </label>
+                <div class="card-foot" style="margin-top:15px">
+                    <button class="primary" id="btn-save-cache">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
+
+<!-- ============================== MODAIS =============================== -->
+
+<!-- Editor de ativo -->
+<div class="modal-backdrop" id="modal-asset">
+    <div class="modal">
+        <div class="modal-head">
+            <h3 id="asset-modal-title">Adicionar ativo</h3>
+            <button class="ghost icon" data-close><i data-icon="close" data-size="16"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="form-row">
+                <label class="field">Ticker (Yahoo Finance)
+                    <input type="text" id="af-ticker" placeholder="PETR4.SA ou BTC-USD">
+                </label>
+                <label class="field">Nome
+                    <input type="text" id="af-name" placeholder="Petrobras PN">
+                </label>
+            </div>
+            <div class="form-row">
+                <label class="field">Classe
+                    <select id="af-class">
+                        <option value="stock">Ação ou ETF da B3</option>
+                        <option value="crypto">Criptomoeda</option>
+                    </select>
+                </label>
+                <label class="field">Símbolo na corretora
+                    <input type="text" id="af-symbol" placeholder="PETR4 ou BTCUSDT">
+                </label>
+                <label class="field" id="af-qty-wrap">Tamanho da ordem
+                    <input type="number" id="af-qty" step="any" min="0">
+                </label>
+            </div>
+            <div class="form-row">
+                <label class="field">Início do histórico
+                    <input type="text" id="af-start" placeholder="2018-01-01">
+                </label>
+                <label class="field">Corte treino / teste cego
+                    <input type="text" id="af-split" placeholder="2023-01-01">
+                </label>
+            </div>
+            <p class="small faint" id="af-hint"></p>
+        </div>
+        <div class="modal-foot">
+            <button data-close>Cancelar</button>
+            <button class="primary" id="btn-save-asset">Salvar ativo</button>
+        </div>
+    </div>
+</div>
+
+<!-- Treinamento -->
+<div class="modal-backdrop" id="modal-train">
+    <div class="modal">
+        <div class="modal-head">
+            <h3 id="train-title">Treinar modelo</h3>
+            <button class="ghost icon" data-close><i data-icon="close" data-size="16"></i></button>
+        </div>
+        <div class="modal-body">
+            <div id="train-form">
+                <p class="desc faint" style="margin-top:0">
+                    O robô treina no histórico até a data de corte e é avaliado em teste cego no período
+                    seguinte, gerando um relatório gráfico.
+                </p>
+                <div class="form-row">
+                    <label class="field">Episódios
+                        <input type="number" id="tf-episodes" value="20" min="1" max="200">
+                    </label>
+                    <label class="field">Batch size
+                        <input type="number" id="tf-batch" value="32" min="8" max="256">
+                    </label>
+                    <label class="field">Capital simulado
+                        <input type="number" id="tf-capital" step="any">
+                    </label>
+                </div>
+                <p class="small faint" style="margin-bottom:0">
+                    Cada episódio percorre todo o histórico de treino. Vinte episódios levam alguns minutos em CPU.
+                </p>
+            </div>
+
+            <div id="train-progress" style="display:none">
+                <div class="section-head" style="margin-bottom:10px">
+                    <span class="eyebrow" id="train-stage">Iniciando</span>
+                    <span class="spacer"></span>
+                    <span class="figure small muted" id="train-pct">0%</span>
+                </div>
+                <div class="progress"><div class="bar" id="train-bar" style="width:0%"></div></div>
+                <div class="log" id="train-log" style="margin-top:14px"></div>
+                <div id="train-result" style="margin-top:14px"></div>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button data-close id="btn-train-close">Fechar</button>
+            <button class="danger" id="btn-train-cancel" style="display:none">Cancelar treino</button>
+            <button class="primary" id="btn-train-start"><i data-icon="play" data-size="14"></i> Iniciar treinamento</button>
+        </div>
+    </div>
+</div>
+
+<!-- Backtest -->
+<div class="modal-backdrop" id="modal-report">
+    <div class="modal wide">
+        <div class="modal-head">
+            <h3 id="report-title">Relatório de backtest</h3>
+            <button class="ghost icon" data-close><i data-icon="close" data-size="16"></i></button>
+        </div>
+        <div class="modal-body">
+            <img id="report-img" alt="Relatório de backtest">
+        </div>
+    </div>
+</div>
+
+<!-- Execução manual -->
+<div class="modal-backdrop" id="modal-run">
+    <div class="modal">
+        <div class="modal-head">
+            <h3 id="run-title">Executar agora</h3>
+            <button class="ghost icon" data-close><i data-icon="close" data-size="16"></i></button>
+        </div>
+        <div class="modal-body" id="run-body"></div>
+        <div class="modal-foot">
+            <button data-close>Fechar</button>
+            <button class="primary" id="btn-run-confirm"><i data-icon="play" data-size="14"></i> Executar ciclo</button>
+        </div>
+    </div>
+</div>
+
+<div id="toasts"></div>
+
+<script src="/static/icons.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

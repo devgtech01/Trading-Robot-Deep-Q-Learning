@@ -20,6 +20,15 @@ def get_binance_client(api_key: str, secret_key: str, testnet: bool = True) -> C
     if testnet:
         client.API_URL = "https://testnet.binance.vision/api"
 
+    # A Binance recusa requisição assinada cujo timestamp esteja mais de 1000 ms
+    # adiantado em relação ao servidor dela (erro -1021), e o python-binance usa
+    # o relógio local sem sincronizar. Medimos o desvio e ficamos 500 ms atrás,
+    # que é o lado tolerado da janela.
+    before = time.time() * 1000
+    server_time = client.get_server_time()["serverTime"]
+    after = time.time() * 1000
+    client.timestamp_offset = int(server_time - (before + after) / 2) - 500
+
     print("\n" + "=" * 55)
     print("       BINANCE CONECTADA COM SUCESSO!")
     print("=" * 55)

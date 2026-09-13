@@ -9,3 +9,8 @@ venv/
 .vscode/
 .idea/
 .DS_Store
+
+# Painel web: credenciais e estado local
+data/settings.json
+data/assets.json
+data/activity_log.json

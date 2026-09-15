@@ -29,6 +29,29 @@ except ImportError as exc:
     raise SystemExit(1)
 
 
+def porta_livre(host: str, port: int) -> bool:
+    """
+    Confere se ja existe alguem escutando na porta ANTES de subir o painel.
+
+    Sem esta checagem, um processo antigo segurando a porta so vira erro depois
+    que o Flask ja imprimiu o banner de "painel no ar" -- e sob um gerenciador
+    de processos (PM2, systemd) isso vira um loop de reinicios que parece falha
+    da aplicacao. Aqui a recusa e imediata e explica o que fazer.
+
+    A deteccao e por conexao, e nao por bind de teste: `SO_REUSEADDR` tem
+    semanticas opostas nos dois sistemas -- no Windows ele deixa ocupar uma
+    porta que ja tem dono, entao um bind de teste daria "livre" com o painel
+    rodando. Conectar responde a pergunta certa em Linux e Windows: tem alguem
+    escutando aqui?
+    """
+    import socket
+
+    alvo = "127.0.0.1" if host in ("0.0.0.0", "", "::") else host
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(1.0)
+        return sock.connect_ex((alvo, port)) != 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="Painel Web do Robô de Trading DQN (Ações B3 + Cripto)")
     parser.add_argument("--host", type=str, default="127.0.0.1", help="Endereço de escuta (padrão: 127.0.0.1)")
@@ -37,6 +60,18 @@ def main():
     parser.add_argument("--no-browser", action="store_true", help="Não abrir o navegador automaticamente")
 
     args = parser.parse_args()
+
+    if not porta_livre(args.host, args.port):
+        print()
+        print(f"[-] A porta {args.port} ja esta em uso. O painel nao vai subir.")
+        print("    Descubra quem esta com ela:")
+        print(f"        ss -ltnp | grep ':{args.port}'")
+        print("    Se for uma instancia antiga do proprio painel, encerre-a antes.")
+        print("    Sob PM2 use 'pm2 delete <app>', nao 'pm2 stop': o stop nao cancela")
+        print("    um reinicio ja agendado, que volta a tomar a porta em segundos.")
+        print()
+        raise SystemExit(1)
+
     app = create_app()
 
     url = f"http://{'127.0.0.1' if args.host == '0.0.0.0' else args.host}:{args.port}"

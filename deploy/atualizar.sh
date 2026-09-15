@@ -97,10 +97,18 @@ fi
 # --------------------------------------------------------------------------- #
 if ! git diff --quiet "$ANTES" "$DEPOIS" -- requirements.txt; then
     echo "==> requirements.txt mudou; instalando"
-    if [ -x .venv/bin/pip ]; then
-        .venv/bin/pip install -r requirements.txt
+    # O virtualenv pode se chamar "venv" ou ".venv" conforme a instalacao.
+    PIP=""
+    for cand in venv/bin/pip .venv/bin/pip; do
+        [ -x "$cand" ] && { PIP="$cand"; break; }
+    done
+    if [ -n "$PIP" ]; then
+        echo "    usando $PIP"
+        "$PIP" install -r requirements.txt
     else
-        echo "!!! .venv/bin/pip nao encontrado. Instale na mao no seu ambiente Python."
+        echo "!!! Nenhum virtualenv encontrado em venv/ nem .venv/."
+        echo "    Instale na mao com o python que roda o painel:"
+        echo "      <python-do-painel> -m pip install -r requirements.txt"
     fi
 else
     echo "==> requirements.txt sem mudancas; nada a instalar"

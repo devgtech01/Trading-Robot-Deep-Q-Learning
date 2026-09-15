@@ -15,8 +15,9 @@ module.exports = {
       name: "dqn-dashboard",
       cwd: "/var/www/trading-robot",
       script: "dashboard.py",
-      // Nao ha virtualenv nesta VPS: as dependencias estao no Python do sistema.
-      interpreter: "python3",
+      // O virtualenv desta VPS fica em "venv" (sem ponto). O python do sistema
+      // NAO tem numpy/torch/flask: apontar para ele mata o painel no boot.
+      interpreter: "/var/www/trading-robot/venv/bin/python",
 
       // --host 0.0.0.0 preserva o comportamento atual (o painel responde no IP
       // publico). Sem isso, o dashboard.py liga em 127.0.0.1 e so e alcancavel

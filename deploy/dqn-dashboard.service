@@ -1,12 +1,16 @@
-# Serviço systemd do painel do Robô de Trading DQN (Fedora 42).
+# Servico systemd do painel do Robo de Trading DQN.
 #
-# Instalação:
+# Por que systemd e nao PM2: o PM2 perde o vinculo pai-filho com este processo
+# Python -- ele nasce e e reparentado ao init (PPID 1). O PM2 entao considera
+# que morreu, sobe outro, que bate em "Address already in use", e o ciclo se
+# repete indefinidamente enquanto o processo real segue servindo orfao. Isso
+# acontecia desde antes de qualquer mudanca (542 restarts na config original).
+# O systemd com Type=simple acompanha o processo corretamente.
+#
+# Instalacao:
 #   sudo cp deploy/dqn-dashboard.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now dqn-dashboard
-#
-# Ajuste User, WorkingDirectory e os caminhos se o projeto não estiver em
-# /opt/trading-robot nem rodar com o usuário 'trading'.
 
 [Unit]
 Description=Painel do Robo de Trading DQN (B3 + Cripto)
@@ -15,38 +19,30 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=trading
-Group=trading
-WorkingDirectory=/opt/trading-robot
+User=root
+WorkingDirectory=/var/www/trading-robot
 
-# Escuta SOMENTE em localhost. O painel nao tem autenticacao e guarda as chaves
-# da Binance em disco: expo-lo direto na internet entrega a conta a quem achar o
-# IP. O acesso deve vir de um tunel SSH ou de um proxy reverso com senha e TLS.
-ExecStart=/opt/trading-robot/.venv/bin/gunicorn \
-    --workers 1 \
-    --threads 8 \
-    --timeout 300 \
-    --graceful-timeout 30 \
-    --bind 127.0.0.1:8000 \
-    --access-logfile - \
-    --error-logfile - \
-    wsgi:app
+# O virtualenv fica em "venv" (sem ponto). O python do sistema NAO tem
+# numpy/torch/flask -- apontar para ele mata o painel no boot.
+ExecStart=/var/www/trading-robot/venv/bin/python dashboard.py \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --no-browser
 
-# A B3 opera no fuso de Sao Paulo e o agendador usa datetime.now().
+# Carregar PyTorch e fechar o socket levam tempo; o padrao de 90s do systemd ja
+# cobre, mas deixamos explicito para nao sobrar socket preso entre reinicios.
+TimeoutStartSec=120
+TimeoutStopSec=30
+KillSignal=SIGINT
+
+# A B3 opera no horario de Brasilia e o agendador usa datetime.now().
 Environment=TZ=America/Sao_Paulo
 Environment=PYTHONUNBUFFERED=1
-# Torch abrindo 1 thread por nucleo em VPS pequena so gera disputa de CPU.
+# Torch abrindo uma thread por nucleo so gera disputa de CPU nesta VPS.
 Environment=OMP_NUM_THREADS=2
 
 Restart=on-failure
 RestartSec=10
-
-# Endurecimento basico: o servico so precisa escrever dentro do proprio projeto.
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=full
-ProtectHome=true
-ReadWritePaths=/opt/trading-robot/data /opt/trading-robot/models /opt/trading-robot/reports
 
 [Install]
 WantedBy=multi-user.target

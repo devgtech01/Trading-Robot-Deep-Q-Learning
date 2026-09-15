@@ -10,7 +10,18 @@ venv/
 .idea/
 .DS_Store
 
-# Painel web: credenciais e estado local
+# Estado de execucao: cada maquina (seu PC e a VPS) tem o seu proprio.
+# Manter estes arquivos versionados fazia todo `git pull` na VPS falhar com
+# "local changes would be overwritten", porque o robo os reescreve sozinho.
+# (o Git nao aceita comentario na mesma linha do padrao)
+
+# Chaves da Binance - NUNCA versionar
 data/settings.json
 data/assets.json
 data/activity_log.json
+# Carteira simulada
+data/paper_wallet.json
+# Metricas do teste cego (recalculadas sob demanda)
+data/backtests.json
+# Relatorios gerados a cada backtest
+reports/*.png

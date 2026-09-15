@@ -1,0 +1,52 @@
+# Serviço systemd do painel do Robô de Trading DQN (Fedora 42).
+#
+# Instalação:
+#   sudo cp deploy/dqn-dashboard.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now dqn-dashboard
+#
+# Ajuste User, WorkingDirectory e os caminhos se o projeto não estiver em
+# /opt/trading-robot nem rodar com o usuário 'trading'.
+
+[Unit]
+Description=Painel do Robo de Trading DQN (B3 + Cripto)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trading
+Group=trading
+WorkingDirectory=/opt/trading-robot
+
+# Escuta SOMENTE em localhost. O painel nao tem autenticacao e guarda as chaves
+# da Binance em disco: expo-lo direto na internet entrega a conta a quem achar o
+# IP. O acesso deve vir de um tunel SSH ou de um proxy reverso com senha e TLS.
+ExecStart=/opt/trading-robot/.venv/bin/gunicorn \
+    --workers 1 \
+    --threads 8 \
+    --timeout 300 \
+    --graceful-timeout 30 \
+    --bind 127.0.0.1:8000 \
+    --access-logfile - \
+    --error-logfile - \
+    wsgi:app
+
+# A B3 opera no fuso de Sao Paulo e o agendador usa datetime.now().
+Environment=TZ=America/Sao_Paulo
+Environment=PYTHONUNBUFFERED=1
+# Torch abrindo 1 thread por nucleo em VPS pequena so gera disputa de CPU.
+Environment=OMP_NUM_THREADS=2
+
+Restart=on-failure
+RestartSec=10
+
+# Endurecimento basico: o servico so precisa escrever dentro do proprio projeto.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/trading-robot/data /opt/trading-robot/models /opt/trading-robot/reports
+
+[Install]
+WantedBy=multi-user.target

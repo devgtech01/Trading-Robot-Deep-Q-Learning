@@ -31,7 +31,23 @@ module.exports = {
       autorestart: true,
       watch: false,
       max_restarts: 10,
-      restart_delay: 10000,
+      restart_delay: 5000,
+
+      // O padrao do PM2 e mandar SIGINT e, 1,6s depois, SIGKILL. Nao da tempo:
+      // este processo carrega PyTorch e mantem a thread do agendador, entao o
+      // desligamento passa desse prazo. Levando SIGKILL, ele morre sem fechar o
+      // socket da porta 8000 -- e o processo seguinte, que o PM2 sobe achando
+      // que o anterior morreu, bate em "Address already in use" e reinicia em
+      // loop, enquanto o processo real fica orfao segurando a porta. Foi
+      // exatamente esse o sintoma em producao.
+      kill_timeout: 15000,
+
+      // Subir Flask + PyTorch leva alguns segundos; sem isso o PM2 pode
+      // considerar o boot uma falha.
+      listen_timeout: 60000,
+
+      // Um processo que ficou 30s de pe nao conta como "restart instavel".
+      min_uptime: 30000,
 
       env: {
         // A B3 opera no horario de Brasilia e o agendador usa a hora local.

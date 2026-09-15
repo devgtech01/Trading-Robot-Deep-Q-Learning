@@ -49,6 +49,30 @@ def save_wallet(wallet: dict):
         json.dump(wallet, f, indent=4, ensure_ascii=False)
 
 
+def current_prices_for(positions: dict, ticker: str, current_price: float, is_crypto: bool) -> dict:
+    """
+    Última cotação de cada posição em custódia.
+
+    O ativo analisado nesta execução já tem o preço em mãos; os demais são
+    buscados um a um. Se alguma cotação falhar (rede, ticker deslistado), a
+    posição é avaliada pelo preço de compra — patrimônio conservador em vez de
+    um número inventado.
+    """
+    prices = {}
+    for t_code, p_data in positions.items():
+        if t_code == ticker:
+            prices[t_code] = current_price
+            continue
+        try:
+            loader = load_crypto_data if is_crypto else load_b3_data
+            start = "2024-01-01" if is_crypto else "2023-01-01"
+            prices[t_code] = float(loader(ticker=t_code, start_date=start).iloc[-1]["Close"])
+        except Exception as exc:
+            print(f"[!] Sem cotação para {t_code} ({exc}); avaliado pelo preço de compra.")
+            prices[t_code] = float(p_data["buy_price"])
+    return prices
+
+
 def run_paper_trading(ticker: str, is_crypto: bool = False, models_dir: str = "models", window_size: int = 5):
     wallet = load_wallet()
     currency = "USDT" if is_crypto else "BRL"
@@ -153,9 +177,14 @@ def run_paper_trading(ticker: str, is_crypto: bool = False, models_dir: str = "m
     save_wallet(wallet)
 
     # 5. Calcular Patrimônio Total Atual
+    # Cada posição precisa da SUA própria cotação. Usar `current_price` para todas
+    # (o preço do ativo analisado nesta execução) inflava o patrimônio de forma
+    # absurda — ex.: avaliar 100 ITUB4 pelo preço do BTC.
+    prices = current_prices_for(wallet[currency]["positions"], ticker, current_price, is_crypto)
+
     total_equity = wallet[currency]["cash"]
     for t_code, p_data in wallet[currency]["positions"].items():
-        total_equity += p_data["amount"] * current_price
+        total_equity += p_data["amount"] * prices[t_code]
 
     total_return_pct = ((total_equity - wallet[currency]["initial_cash"]) / wallet[currency]["initial_cash"]) * 100.0
 
@@ -170,8 +199,9 @@ def run_paper_trading(ticker: str, is_crypto: bool = False, models_dir: str = "m
     print(f"  Patrimônio Total da Carteira:{curr_symbol} {total_equity:>12,.2f} ({total_return_pct:>+6.2f}%)")
     print(f"  Posições Ativas em Custódia: {len(wallet[currency]['positions'])}")
     for t_code, p_data in wallet[currency]["positions"].items():
-        val = p_data["amount"] * current_price
-        pnl = ((current_price - p_data["buy_price"]) / p_data["buy_price"]) * 100.0
+        price_t = prices[t_code]
+        val = p_data["amount"] * price_t
+        pnl = ((price_t - p_data["buy_price"]) / p_data["buy_price"]) * 100.0
         print(f"    -> {t_code}: {p_data['amount']:.4f} un. | Custo: {curr_symbol} {p_data['buy_price']:.2f} | Atual: {curr_symbol} {val:,.2f} ({pnl:+.2f}%)")
 
     print(f"  Histórico de Trades Fechados:{len(wallet[currency]['history'])}")

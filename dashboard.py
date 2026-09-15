@@ -9,11 +9,24 @@ Uso:
 """
 
 import argparse
+import sys
 import threading
 import webbrowser
 
-from webapp import automation
-from webapp.server import create_app
+import src  # noqa: F401  (ajusta o console do Windows para UTF-8)
+
+try:
+    from webapp import automation
+    from webapp.server import create_app
+except ImportError as exc:
+    faltando = getattr(exc, "name", None) or "uma dependência"
+    print()
+    print(f"[-] O painel não pôde iniciar: falta a biblioteca '{faltando}'.")
+    print("    Instale tudo o que o projeto precisa com:")
+    print()
+    print(f'        "{sys.executable}" -m pip install -r requirements.txt')
+    print()
+    raise SystemExit(1)
 
 
 def main():

@@ -315,9 +315,12 @@ def api_asset_automation(ticker):
             return fail(f"Modo '{patch['mode']}' não é válido para este tipo de ativo.")
 
         mode = patch.get("mode", asset["automation"]["mode"])
-        if patch.get("enabled") and mode in config.REAL_MONEY_MODES:
-            if not store.load_settings().get("allow_real_money"):
-                return fail("Libere a trava de dinheiro real em Configurações antes de automatizar este modo.", 403)
+        if patch.get("enabled"):
+            # Conta demo do MT5 não é dinheiro real e não precisa da trava.
+            required, motivo = brokers.needs_real_money_unlock(mode)
+            if required and not store.load_settings().get("allow_real_money"):
+                return fail(f"Automação bloqueada: {motivo}. Libere a trava de dinheiro real "
+                            f"em Configurações, ou use conta demo/Testnet.", 403)
 
         updated = store.update_automation(ticker, patch)
         if "enabled" in patch:

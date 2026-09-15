@@ -4,8 +4,9 @@ crypto_data.py - Módulo para download e preparação de séries temporais de Cr
 
 import pandas as pd
 import numpy as np
-import yfinance as yf
 from datetime import datetime
+
+from src.market_data import download_ohlcv
 
 
 def compute_rsi(series: pd.Series, period: int = 14) -> pd.Series:
@@ -26,19 +27,13 @@ def load_crypto_data(
     """
     Baixa os dados históricos de uma Criptomoeda e calcula indicadores técnicos adaptados à alta volatilidade.
     """
-    if end_date is None:
-        end_date = datetime.today().strftime("%Y-%m-%d")
+    # `end` no Yahoo é EXCLUSIVO: passar a data de hoje descarta justamente o
+    # candle de hoje, e o robô acabaria decidindo sempre com o preço de ontem.
+    # Deixando None, o yfinance traz até a última barra disponível.
+    hoje = datetime.today().strftime("%Y-%m-%d")
 
-    print(f"[*] Baixando dados para {ticker} de {start_date} até {end_date} (Mercado Cripto 24/7)...")
-    df = yf.download(ticker, start=start_date, end=end_date, progress=False)
-
-    if df.empty:
-        raise ValueError(f"Não foram encontrados dados para o par {ticker}.")
-
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = [col[0] for col in df.columns]
-
-    df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
+    print(f"[*] Baixando dados para {ticker} de {start_date} até {end_date or hoje} (Mercado Cripto 24/7)...")
+    df = download_ohlcv(ticker, start_date=start_date, end_date=end_date)
     df.dropna(inplace=True)
 
     # Indicadores técnicos para Cripto

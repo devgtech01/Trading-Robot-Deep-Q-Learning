@@ -275,12 +275,37 @@ def binance_execute(asset: dict, action: int, price: float, testnet: bool = True
 # --------------------------------------------------------------------------- #
 # Roteamento por modo
 # --------------------------------------------------------------------------- #
+def needs_real_money_unlock(mode: str) -> tuple[bool, str]:
+    """
+    Diz se o modo exige a trava de dinheiro real liberada, e por quê.
+
+    O MetaTrader 5 é o único modo ambíguo: o mesmo terminal atende conta DEMO e
+    conta real. Uma conta demo é o equivalente da Testnet da Binance — dinheiro
+    fictício — e não faz sentido exigir a trava de dinheiro real para usá-la.
+    Então aqui perguntamos ao terminal em que tipo de conta ele está logado.
+    """
+    if mode == config.MODE_BINANCE_REAL:
+        return True, "conta REAL da Binance"
+
+    if mode == config.MODE_MT5:
+        status = mt5_status()
+        if not status.get("connected"):
+            return True, f"não foi possível confirmar o tipo da conta ({status.get('message', '')})"
+        if status.get("demo"):
+            return False, f"conta DEMO do MetaTrader 5 (login {status.get('login')})"
+        return True, f"conta REAL do MetaTrader 5 (login {status.get('login')})"
+
+    return False, ""
+
+
 def execute_live(asset: dict, action: int, price: float, mode: str,
                  quantity: float = None) -> dict:
     """Executa a ação no destino escolhido, respeitando a trava de dinheiro real."""
-    if mode in config.REAL_MONEY_MODES and not store.load_settings().get("allow_real_money", False):
+    required, motivo = needs_real_money_unlock(mode)
+    if required and not store.load_settings().get("allow_real_money", False):
         return {"executed": False, "type": "none",
-                "message": "Modo de dinheiro real bloqueado. Libere a trava em Configurações antes de operar ao vivo."}
+                "message": f"Bloqueado: {motivo}. Libere a trava de dinheiro real em "
+                           f"Configurações — ou use uma conta demo/Testnet para testar."}
 
     if mode == config.MODE_MT5:
         return mt5_execute(asset, action, quantity=quantity)

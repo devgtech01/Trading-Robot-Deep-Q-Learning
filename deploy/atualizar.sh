@@ -5,7 +5,8 @@
 # Uso (na VPS, dentro da pasta do projeto):
 #     bash deploy/atualizar.sh
 #
-# Se o servico systemd tiver outro nome:
+# Detecta sozinho se o painel roda sob PM2 ou systemd. Para forcar o nome:
+#     PM2_APP=meu-app     bash deploy/atualizar.sh
 #     SERVICO=meu-servico bash deploy/atualizar.sh
 #
 # O cuidado principal deste script e com data/ e reports/. Ate esta
@@ -19,6 +20,7 @@
 set -euo pipefail
 
 SERVICO="${SERVICO:-dqn-dashboard}"
+PM2_APP="${PM2_APP:-dqn-dashboard}"
 PROJETO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CARIMBO="$(date +%Y%m%d-%H%M%S)"
 BACKUP="$PROJETO/backup-$CARIMBO"
@@ -29,15 +31,24 @@ echo "==> Projeto: $PROJETO"
 # --------------------------------------------------------------------------- #
 # 1. Parar o servico
 # --------------------------------------------------------------------------- #
-PAROU=0
-if command -v systemctl >/dev/null && systemctl list-unit-files 2>/dev/null | grep -q "^${SERVICO}\.service"; then
-    echo "==> Parando o servico '$SERVICO'..."
+GERENCIADOR="nenhum"
+
+if command -v pm2 >/dev/null && pm2 jlist 2>/dev/null | grep -q "\"name\":\"${PM2_APP}\""; then
+    GERENCIADOR="pm2"
+    echo "==> Parando o app PM2 '$PM2_APP'..."
+    pm2 stop "$PM2_APP"
+elif command -v systemctl >/dev/null && systemctl list-unit-files 2>/dev/null | grep -q "^${SERVICO}\.service"; then
+    GERENCIADOR="systemd"
+    echo "==> Parando o servico systemd '$SERVICO'..."
     sudo systemctl stop "$SERVICO"
-    PAROU=1
 else
-    echo "!!! Servico systemd '$SERVICO' nao encontrado."
-    echo "    Se o painel roda de outro jeito (screen, tmux, docker, nohup),"
-    echo "    PARE-O AGORA em outro terminal antes de continuar."
+    echo "!!! Nao achei o app PM2 '$PM2_APP' nem o servico systemd '$SERVICO'."
+    if command -v pm2 >/dev/null; then
+        echo "    Apps PM2 disponiveis:"
+        pm2 list
+        echo "    Rode de novo com: PM2_APP=<nome> bash deploy/atualizar.sh"
+    fi
+    echo "    Ou PARE o painel agora em outro terminal antes de continuar."
     read -r -p "    Pressione ENTER quando o painel estiver parado (Ctrl+C para abortar). "
 fi
 
@@ -98,15 +109,24 @@ fi
 # --------------------------------------------------------------------------- #
 # 6. Religar
 # --------------------------------------------------------------------------- #
-if [ "$PAROU" = "1" ]; then
-    echo "==> Subindo o servico '$SERVICO'..."
-    sudo systemctl start "$SERVICO"
-    sleep 5
-    systemctl --no-pager --lines=5 status "$SERVICO" || true
-else
-    echo "==> Suba o painel de novo do jeito que voce usa."
-    read -r -p "    Pressione ENTER quando ele estiver no ar. "
-fi
+case "$GERENCIADOR" in
+    pm2)
+        echo "==> Subindo o app PM2 '$PM2_APP'..."
+        pm2 restart "$PM2_APP" --update-env
+        sleep 5
+        pm2 list
+        ;;
+    systemd)
+        echo "==> Subindo o servico systemd '$SERVICO'..."
+        sudo systemctl start "$SERVICO"
+        sleep 5
+        systemctl --no-pager --lines=5 status "$SERVICO" || true
+        ;;
+    *)
+        echo "==> Suba o painel de novo do jeito que voce usa."
+        read -r -p "    Pressione ENTER quando ele estiver no ar. "
+        ;;
+esac
 
 # --------------------------------------------------------------------------- #
 # 7. Conferir que a correcao entrou
@@ -135,5 +155,8 @@ else:
 
 echo
 echo "==> Pronto. Backup preservado em: $BACKUP"
+if [ "$GERENCIADOR" = "pm2" ]; then
+    echo "    Logs:  pm2 logs $PM2_APP --lines 50"
+fi
 echo "    Para desfazer tudo:"
 echo "      git reset --hard $ANTES && cp -a $BACKUP/data/. data/ && cp -a $BACKUP/reports/. reports/"

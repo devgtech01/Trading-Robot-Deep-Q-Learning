@@ -25,3 +25,6 @@ data/paper_wallet.json
 data/backtests.json
 # Relatorios gerados a cada backtest
 reports/*.png
+
+# Logs do PM2
+logs/

@@ -13,9 +13,14 @@ module.exports = {
   apps: [
     {
       name: "dqn-dashboard",
-      cwd: "/opt/trading-robot",
+      cwd: "/var/www/trading-robot",
       script: "dashboard.py",
-      interpreter: "/opt/trading-robot/.venv/bin/python",
+      // Nao ha virtualenv nesta VPS: as dependencias estao no Python do sistema.
+      interpreter: "python3",
+
+      // --host 0.0.0.0 preserva o comportamento atual (o painel responde no IP
+      // publico). Sem isso, o dashboard.py liga em 127.0.0.1 e so e alcancavel
+      // de dentro da VPS. Veja a nota de exposicao no fim deste arquivo.
       args: "--host 0.0.0.0 --port 8000 --no-browser",
 
       instances: 1,
@@ -36,10 +41,27 @@ module.exports = {
         OMP_NUM_THREADS: "2",
       },
 
-      out_file: "/opt/trading-robot/logs/pm2-out.log",
-      error_file: "/opt/trading-robot/logs/pm2-error.log",
+      out_file: "/var/www/trading-robot/logs/pm2-out.log",
+      error_file: "/var/www/trading-robot/logs/pm2-error.log",
       merge_logs: true,
       time: true,
     },
   ],
 };
+
+// -------------------------------------------------------------------------- //
+// Exposicao de rede
+// -------------------------------------------------------------------------- //
+// Com --host 0.0.0.0 o painel atende qualquer origem que alcance a porta 8000.
+// Ele NAO tem autenticacao e guarda as chaves da Binance em texto puro em
+// data/settings.json. Duas formas de fechar isso sem perder o acesso remoto:
+//
+//   1. Liberar a porta so para o seu IP (firewalld):
+//        sudo firewall-cmd --permanent --zone=drop --add-source=SEU.IP.AQUI/32
+//        sudo firewall-cmd --permanent --remove-port=8000/tcp
+//        sudo firewall-cmd --reload
+//
+//   2. Trocar args para "--host 127.0.0.1 --port 8000 --no-browser" e acessar
+//      por tunel SSH, do seu computador:
+//        ssh -L 8000:127.0.0.1:8000 root@IP_DA_VPS
+//      Depois abrir http://127.0.0.1:8000 no navegador local.

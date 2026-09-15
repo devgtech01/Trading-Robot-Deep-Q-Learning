@@ -76,6 +76,8 @@ DEFAULT_SETTINGS = {
     "binance_secret_key": "",
     "allow_real_money": False,     # trava de segurança para modos de dinheiro real
     "quote_cache_minutes": 15,
+    "password_hash": "",           # hash da senha do painel (nunca a senha)
+    "secret_key": "",              # assina os cookies de sessão; criado no 1º uso
 }
 
 

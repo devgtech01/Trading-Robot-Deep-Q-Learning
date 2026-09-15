@@ -279,6 +279,16 @@ button.ghost:hover:not(:disabled) { background: var(--surface-2); border-color: 
 button.tiny { padding: 5px 9px; font-size: 11px; }
 button.icon { padding: 6.5px; }
 
+/* O botao de sair e um link (<a href="/logout">) para funcionar mesmo se o
+   JavaScript falhar; aqui ele recebe a mesma aparencia dos botoes do cabecalho. */
+a.icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 6.5px; border: 1px solid var(--line); border-radius: 9px;
+    background: var(--surface); color: var(--faint); text-decoration: none;
+    cursor: pointer;
+}
+a.icon:hover { background: var(--surface-2); border-color: var(--line-soft); color: var(--text); }
+
 /* =============================== Switch ================================= */
 .switch { display: inline-flex; align-items: center; gap: 9px; cursor: pointer; user-select: none; }
 .switch input { position: absolute; opacity: 0; width: 0; height: 0; }

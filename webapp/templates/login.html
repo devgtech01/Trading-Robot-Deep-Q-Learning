@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Entrar · Robô de Trading DQN</title>
+<style>
+    :root {
+        --bg: #0e1116; --card: #161b22; --linha: #263041;
+        --texto: #e6edf3; --suave: #8b949e; --acento: #2f81f7; --erro: #f85149;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; min-height: 100vh; display: flex; align-items: center;
+        justify-content: center; padding: 24px; background: var(--bg);
+        color: var(--texto);
+        font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    .card {
+        width: 100%; max-width: 380px; background: var(--card);
+        border: 1px solid var(--linha); border-radius: 14px; padding: 32px 28px;
+    }
+    h1 { margin: 0 0 4px; font-size: 19px; }
+    .sub { margin: 0 0 24px; color: var(--suave); font-size: 13px; }
+    label { display: block; margin-bottom: 8px; font-size: 13px; color: var(--suave); }
+    input {
+        width: 100%; padding: 11px 13px; border-radius: 9px;
+        border: 1px solid var(--linha); background: #0d1117; color: var(--texto);
+        font-size: 15px;
+    }
+    input:focus { outline: none; border-color: var(--acento); }
+    button {
+        width: 100%; margin-top: 18px; padding: 11px; border: 0; border-radius: 9px;
+        background: var(--acento); color: #fff; font-size: 15px; font-weight: 600;
+        cursor: pointer;
+    }
+    button:hover { filter: brightness(1.1); }
+    .erro {
+        margin-bottom: 18px; padding: 10px 12px; border-radius: 9px;
+        background: rgba(248, 81, 73, .12); border: 1px solid rgba(248, 81, 73, .4);
+        color: var(--erro); font-size: 13px;
+    }
+    .rodape { margin-top: 22px; color: var(--suave); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+    <div class="card">
+        <h1>Robô de Trading DQN</h1>
+        <p class="sub">Painel restrito. Informe a senha para continuar.</p>
+
+        {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+
+        <form method="post" action="/login">
+            <input type="hidden" name="next" value="{{ request.args.get('next', '/') }}">
+            <label for="senha">Senha</label>
+            <input id="senha" name="senha" type="password" autocomplete="current-password"
+                   autofocus required>
+            <button type="submit">Entrar</button>
+        </form>
+
+        <p class="rodape">Esqueceu a senha? Na VPS, rode<br><code>venv/bin/python set_password.py</code></p>
+    </div>
+</body>
+</html>

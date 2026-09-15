@@ -174,6 +174,8 @@ def public_settings() -> dict:
         "quote_cache_minutes": settings["quote_cache_minutes"],
         "binance_api_key_masked": (key[:4] + "•" * 8 + key[-4:]) if len(key) > 8 else ("" if not key else "••••"),
         "binance_configured": bool(key and secret),
+        # password_hash e secret_key nunca saem daqui: são segredos do servidor.
+        "auth_configured": bool(settings.get("password_hash")),
     }
 
 

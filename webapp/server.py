@@ -10,9 +10,9 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from threading import RLock
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, render_template, request, send_from_directory
 
-from webapp import automation, brokers, config, jobs, portfolio, signals, sizing, store
+from webapp import auth, automation, brokers, config, jobs, portfolio, signals, sizing, store
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["JSON_SORT_KEYS"] = False
@@ -117,6 +117,14 @@ def last_prices(views: list) -> dict:
 @app.route("/")
 def index():
     return send_from_directory(os.path.join(os.path.dirname(__file__), "templates"), "index.html")
+
+
+@app.route("/api/session", methods=["DELETE"])
+def api_session_logout():
+    """Encerra a sessao a partir do proprio painel."""
+    from flask import session
+    session.clear()
+    return ok()
 
 
 @app.route("/reports/<path:filename>")
@@ -464,5 +472,6 @@ def api_automation_panic():
 def create_app() -> Flask:
     config.ensure_dirs()
     store.load_assets()      # cria data/assets.json na primeira execução
+    auth.registrar(app)      # exige login em tudo, inclusive /api
     automation.start()
     return app

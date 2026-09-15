@@ -80,6 +80,12 @@ async function api(path, options = {}) {
     } catch (err) {
         throw new Error(`Resposta inválida do servidor (${res.status})`);
     }
+    // Sessão expirada: o servidor sinaliza com 401 + login:true. Recarregar
+    // leva ao /login, em vez de a tela ficar exibindo erros sem explicação.
+    if (res.status === 401 && data.login) {
+        window.location.href = "/login?next=" + encodeURIComponent(window.location.pathname);
+        throw new Error("Sessão expirada. Redirecionando para o login...");
+    }
     if (!res.ok || data.ok === false) throw new Error(data.error || `Erro ${res.status}`);
     return data;
 }

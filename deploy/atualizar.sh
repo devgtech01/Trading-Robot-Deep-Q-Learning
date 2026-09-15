@@ -135,22 +135,48 @@ echo
 echo "==> Verificando: cada ativo tem que ter um preco DIFERENTE."
 echo "    (antes da correcao, todos vinham com o mesmo preco)"
 sleep 5
-curl -s -m 180 "http://127.0.0.1:8000/api/overview" \
-  | python3 -c '
-import json, sys
+curl -s -m 180 "http://127.0.0.1:8000/api/overview?refresh=1"   | python3 -c '
+import datetime, json, sys
+
 d = json.load(sys.stdin)
-precos = []
-for a in d.get("stocks", []) + d.get("crypto", []):
+ativos = d.get("stocks", []) + d.get("crypto", [])
+precos, cripto_hoje, hoje = [], [], datetime.date.today().strftime("%d/%m/%Y")
+
+for a in ativos:
     s = a["signal"]
-    p = s.get("price") if s.get("available") else None
-    precos.append(p)
-    print("   %-10s %s" % (a["ticker"], p if p else "INDISPONIVEL: " + str(s.get("message"))[:60]))
-validos = [p for p in precos if p]
+    if not s.get("available"):
+        print("   %-10s INDISPONIVEL: %s" % (a["ticker"], str(s.get("message"))[:60]))
+        continue
+    print("   %-10s %-14s data=%s" % (a["ticker"], s.get("price"), s.get("quote_date")))
+    precos.append(s.get("price"))
+    if a["asset_class"] == "crypto":
+        cripto_hoje.append(s.get("quote_date") == hoje)
+
 print()
-if validos and len(set(validos)) == len(validos):
-    print("   OK: precos distintos, a correcao esta no ar.")
-else:
-    print("   ATENCAO: ainda ha precos repetidos. O codigo novo pode nao ter subido.")
+falhas = []
+
+# 1. Dados cruzados: com o bug, threads paralelas devolviam a mesma serie.
+if not precos:
+    falhas.append("nenhum preco foi retornado")
+elif len(set(precos)) != len(precos):
+    falhas.append("ha precos REPETIDOS entre ativos (bug dos dados cruzados)")
+
+# 2. Preco do dia: o `end` do Yahoo e exclusivo, e o codigo antigo passava a
+#    data de hoje, descartando o candle de hoje. Cripto negocia 24/7, entao a
+#    barra de hoje sempre existe -- e o teste mais direto de que o fix subiu.
+if cripto_hoje and not any(cripto_hoje):
+    falhas.append("nenhuma cripto tem cotacao de hoje (%s): o processo no ar "
+                  "ainda usa o codigo antigo" % hoje)
+
+if falhas:
+    print("   ATENCAO: a correcao NAO parece estar no ar.")
+    for f in falhas:
+        print("     - " + f)
+    print("   Confira se o processo que atende a porta 8000 foi reiniciado")
+    print("   DEPOIS do git pull:  ss -ltnp | grep :8000")
+    sys.exit(1)
+
+print("   OK: precos distintos e cotacao do dia. A correcao esta no ar.")
 ' || echo "   (nao consegui consultar a API; confira os logs do servico)"
 
 echo

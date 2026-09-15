@@ -1,16 +1,16 @@
 # Servico systemd do painel do Robo de Trading DQN.
 #
-# Por que systemd e nao PM2: o PM2 perde o vinculo pai-filho com este processo
-# Python -- ele nasce e e reparentado ao init (PPID 1). O PM2 entao considera
-# que morreu, sobe outro, que bate em "Address already in use", e o ciclo se
-# repete indefinidamente enquanto o processo real segue servindo orfao. Isso
-# acontecia desde antes de qualquer mudanca (542 restarts na config original).
-# O systemd com Type=simple acompanha o processo corretamente.
+# O ponto critico deste arquivo e o ExecStartPre.
 #
-# Instalacao:
-#   sudo cp deploy/dqn-dashboard.service /etc/systemd/system/
-#   sudo systemctl daemon-reload
-#   sudo systemctl enable --now dqn-dashboard
+# Tanto o PM2 quanto o systemd perdiam o rastro deste processo: ele acabava
+# reparentado ao init, o supervisor concluia que morreu e subia outro, que
+# encontrava a porta 8000 ocupada pelo primeiro e falhava -- em loop, enquanto
+# o processo original seguia servindo orfao.
+#
+# Em vez de depender de descobrir por que o processo escapa, o servico agora
+# GARANTE a condicao de que precisa: antes de cada start, mata qualquer coisa
+# escutando na 8000. Assim o start sempre encontra a porta livre, e o pior caso
+# vira um unico ciclo de reinicio em vez de um loop infinito.
 
 [Unit]
 Description=Painel do Robo de Trading DQN (B3 + Cripto)
@@ -22,6 +22,11 @@ Type=simple
 User=root
 WorkingDirectory=/var/www/trading-robot
 
+# Libera a porta 8000 antes de subir. O "-" no inicio faz o systemd ignorar o
+# codigo de saida: quando nao ha nada na porta, nao ha o que matar e isso nao e
+# erro. Usa ss em vez de fuser para nao depender do pacote psmisc.
+ExecStartPre=-/bin/bash -c 'ss -ltnp | grep ":8000 " | grep -o "pid=[0-9]*" | cut -d= -f2 | sort -u | xargs -r kill -9; sleep 2'
+
 # O virtualenv fica em "venv" (sem ponto). O python do sistema NAO tem
 # numpy/torch/flask -- apontar para ele mata o painel no boot.
 ExecStart=/var/www/trading-robot/venv/bin/python dashboard.py \
@@ -29,20 +34,20 @@ ExecStart=/var/www/trading-robot/venv/bin/python dashboard.py \
     --port 8000 \
     --no-browser
 
-# Carregar PyTorch e fechar o socket levam tempo; o padrao de 90s do systemd ja
-# cobre, mas deixamos explicito para nao sobrar socket preso entre reinicios.
-TimeoutStartSec=120
-TimeoutStopSec=30
+# Mata todo o grupo de processos no stop, para nao sobrar filho segurando a
+# porta caso o processo principal se desvincule.
+KillMode=control-group
 KillSignal=SIGINT
+TimeoutStartSec=180
+TimeoutStopSec=30
 
 # A B3 opera no horario de Brasilia e o agendador usa datetime.now().
 Environment=TZ=America/Sao_Paulo
 Environment=PYTHONUNBUFFERED=1
-# Torch abrindo uma thread por nucleo so gera disputa de CPU nesta VPS.
 Environment=OMP_NUM_THREADS=2
 
-Restart=on-failure
-RestartSec=10
+Restart=always
+RestartSec=15
 
 [Install]
 WantedBy=multi-user.target

@@ -30,6 +30,11 @@ BINANCE_SAFETY_MS = 500
 # --------------------------------------------------------------------------- #
 def mt5_status() -> dict:
     """Estado da conexão com o terminal MetaTrader 5 (nunca levanta exceção)."""
+    if not config.MT5_SUPORTADO:
+        return {"available": False, "connected": False,
+                "message": "MetaTrader 5 não existe para Linux — a MetaQuotes só publica a "
+                           "biblioteca para Windows. Use a carteira simulada para testar ações."}
+
     try:
         import MetaTrader5 as mt5
     except ImportError:

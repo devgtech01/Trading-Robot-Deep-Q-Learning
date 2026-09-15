@@ -3,6 +3,7 @@ config.py - Caminhos, constantes e catálogo padrão de ativos do painel.
 """
 
 import os
+import sys
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -38,8 +39,13 @@ MODE_MT5 = "mt5"                  # Envia ordem ao MetaTrader 5 (ações)
 MODE_BINANCE_TEST = "binance_testnet"
 MODE_BINANCE_REAL = "binance_real"
 
+# A MetaQuotes publica a biblioteca MetaTrader5 apenas para Windows -- nao existe
+# nenhuma versao para Linux. Numa VPS Linux o modo MT5 so poderia falhar, entao
+# ele nem aparece como opcao: ações continuam com sinal e carteira simulada.
+MT5_SUPORTADO = sys.platform == "win32"
+
 MODES_BY_CLASS = {
-    CLASS_STOCK: [MODE_SIGNAL, MODE_PAPER, MODE_MT5],
+    CLASS_STOCK: [MODE_SIGNAL, MODE_PAPER] + ([MODE_MT5] if MT5_SUPORTADO else []),
     CLASS_CRYPTO: [MODE_SIGNAL, MODE_PAPER, MODE_BINANCE_TEST, MODE_BINANCE_REAL],
 }
 
